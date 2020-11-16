@@ -18,7 +18,7 @@ featl <- list(
   c("propdec","propdec$","expdecfail$"),
   c("propdec","propdec$","ppe$"),
   c("propdec","propdec$","base2$"),
-  c("propdec","propdec$","base4$"))  
+  c("propdec","propdec$","base4$"))
 
 #rownames(df) <- sapply(featl, paste, collapse = " ")
 folders<-c("chinese_tones","assistments","SVO","KDD","MH")
@@ -40,11 +40,11 @@ datalist<-dataset ##lapply(dataset, function(x) x[is.finite(x)])
 
 for (i in 1:12){
 df[j,i]<-signif(mean(datalist[[i]]),3)}}
-  
+
   setwd("C:\\Users\\ppavl\\Dropbox\\Documents - Academic\\HPC Output")
 #write(dats,file=paste("table",dats,".html",sep=""),append=TRUE)
 
-write(htmlTable(df[1:12,c(3,4,5,6,7,9,10)], n.tspanner = c(1,12),
+write(htmlTable(df[1:12,c(3,6,8)], n.tspanner = c(1,12),
                 css.table = "font-family: Calibri; font-size: 9pt; padding-left: 1em; padding-right: 1em;"
                 , rname=1:12),
       file=paste("tablenew",dats,".html",sep=""),append=TRUE)
@@ -53,7 +53,7 @@ write(htmlTable(df[1:12,c(3,4,5,6,7,9,10)], n.tspanner = c(1,12),
 
 dataset<-list()
 for (j in 1:12){
-  
+
   setwd(paste("C:\\Users\\ppavl\\Dropbox\\Documents - Academic\\HPC Output\\",dats,sep=""))
     patv<-paste("subdiflist_for_model_",j,".txt",sep="")
   print(length(list.files(pattern=patv)))
@@ -73,8 +73,8 @@ for (i in 1:12){
       pt(mean(apply(difs,1,FUN=mean,na.rm=TRUE)/
                 (apply(difs,1,FUN=sd,na.rm=TRUE)/
                    sqrt( max(col(dataset[[1]]))))),max(col(dataset[[1]]))))
-   
-    
+
+
     }}
 
 
@@ -109,14 +109,14 @@ melted_pvalues$value2<-p.adjust(melted_pvalues$value, method = "fdr", n = length
 
 ggheatmap<-ggplot(data = melted_pvalues, aes(Var2, Var1, fill =value))+
   geom_tile(color = "white")+
-  scale_fill_gradient2(low = "pink", high = "blue", mid = "light blue", 
+  scale_fill_gradient2(low = "pink", high = "blue", mid = "light blue",
                        midpoint = .5, limit = c(0,1), space = "Lab", trans="sqrt",
                        name="p-value") +
-  theme_minimal()+ 
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1,
                                     hjust = 1))#+  coord_fixed()
 
-ggheatmap + 
+ggheatmap +
   geom_text(aes(Var2, Var1, label = ifelse(value2<.025,"**",ifelse(value<.025,"*",""))), color = "black", size = 3) +
   labs(x = "Model")+ labs(y= "Model")
 
