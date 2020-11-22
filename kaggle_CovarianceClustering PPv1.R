@@ -261,20 +261,14 @@ val3$KC..Content.[ val3$KC..Content. %in% names(which(table(val3$KC..Content.) <
 val3$KC..Default.2 = val3$KC..Default.
 val3$KC..Default.2[ val3$KC..Default.2 %in% names(which(table(val3$KC..Default.) < 10)) ] = "foo"
 
-#val3$CF..ansbin.<-ifelse(val3$CF..ansbin.==1,1,.25)
-modelob<-LKT(data=val3,
-             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","KC..Default.","KC..Default.2","KC..Default.2",
-                          "num_prior_lecture","priorExp","part",
-                          compKC,compKC),
-             features=c("intercept","intercept","logitdec","logitdec","logafm$","logitdec",
-                        "lineafm","intercept","intercept",
-                        "clinesuc","clinefail"),
-             covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
-             fixedpars=c(.95,.93,.9),seedpars=c(NA,NA),interc = TRUE)
-
-modelob$r2
-
-auc(modelob$model$data$CF..ansbin.,predict(modelob$model,type="response"))
+system.time(modelob<-LKT(data=val3,
+             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","KC..Default.2","KC..Default.2","KC..Default.2",
+                          "num_prior_lecture","priorExp","part",compKC,compKC),
+             features=c("intercept","intercept","propdec","logsuc$","logfail$","lineafm$",
+                        "lineafm","intercept","intercept","clinesuc","clinefail"),
+             #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+             fixedpars=c(.6),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
 
 
 View(modelob$model$data)
@@ -295,15 +289,26 @@ modelob$r2
 
 library(SparseM)
 library(LiblineaR)
+library(Matrix)
 
 val3$contf<-as.factor(val3$KC..Content.)
-predictset<-model.matrix(~-1+contf,data=val3)
-predictset2<-as.matrix.csr(model.matrix(~-1+contf,data=val3))
+X<-sparse.model.matrix(~-1+contf,data=val3)
+
+
+
+X.csc <- new("matrix.csc", ra = X@x,
+             ja = X@i + 1L,
+             ia = X@p + 1L,
+             dimension = X@Dim)
+X.csr <- as.matrix.csr(X.csc)
+
+
+predictset2<-X.csr
 
 m<-LiblineaR(predictset2,val3$CF..ansbin.,bias=0,cost=1000,epsilon=.00001)
 m$W[1:10]
 modelvs<-data.frame(m$W)
-colnames(modelvs)<-colnames(predictset)
+colnames(modelvs)<-colnames(X)
 modelvs<-t(modelvs)
 colnames(modelvs)<-"coefficient"
 
