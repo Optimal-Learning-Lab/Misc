@@ -285,7 +285,7 @@ system.time(modelob<-LKT(data=val3,
                                       "num_prior_lecture","priorExp",
                                       "part",compKC,compKC,
                                       "KC2_part","KC2_part",
-                                      "KC2_part",
+                                      "KC2_part","KC2_part","KC2_part",
                                       "KC2_part"
                                     ),
                          features=c("intercept","intercept","propdec",
@@ -293,15 +293,19 @@ system.time(modelob<-LKT(data=val3,
                                     "lineafm","intercept",
                                     "intercept","clinesuc","clinefail",
                                     "logitdec$","intercept",
-                                    "lineafm$",
+                                    "lineafm$","linesuc$","linefail$",
                                     "recency$"
                                    ),
                          #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
                          fixedpars=c(.82,
                                      .65,.3),seedpars=c(NA,NA,NA),interc = TRUE))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
+auc(modelob$newdata$CF..ansbin.,modelob$prediction[,2])
 
 
+val3$cuts = cut(modelob$prediction[,1], breaks = 100)
+actual_bin=tapply(val3$CF..ansbin.,val3$cuts,function(x){mean(x)})
+pred_bin=tapply(modelob$prediction[,2],val3$cuts,function(x){mean(x)})
+plot(actual_bin,pred_bin)
 
 View(modelob$model$data)
 summary(modelob$model)
