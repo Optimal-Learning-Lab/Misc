@@ -243,18 +243,18 @@ val3<-val3[order(val3$row_id),]
 compKC<-paste(paste("c",1:posKC,sep=""),collapse="_")
 
 
-# for(i in "AC"){
-#   print(i)
-#   val3$index<-paste(eval(parse(text=paste("val$",i,sep=""))),val3$Anon.Student.Id,sep="")
-#   eval(parse(text=paste("val3$",i,"spacing <- componentspacing(val3,val$index,val3$CF..Time.)",sep="")))
-#   eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val$index,val3$CF..reltime.)",sep="")))
-# }
-# for(i in rep(paste("c",c(1:posKC),sep=""))){
-#   print(i)
-#   val3$index<-paste(eval(parse(text=paste("val3$",i,sep=""))),val3$Anon.Student.Id,sep="")
-#   eval(parse(text=paste("val3$",i,"spacing <- componentspacing(val3,val3$index,val3$CF..Time.)",sep="")))
-#   eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
-# }
+ for(i in "AC"){
+   print(i)
+   val3$index<-paste(eval(parse(text=paste("val3$",i,sep=""))),val3$Anon.Student.Id,sep="")
+   eval(parse(text=paste("val3$",i,"spacing <- componentspacing(val3,val3$index,val3$CF..Time.)",sep="")))
+   eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
+ }
+ for(i in rep(paste("c",c(1:posKC),sep=""))){
+   print(i)
+   val3$index<-paste(eval(parse(text=paste("val3$",i,sep=""))),val3$Anon.Student.Id,sep="")
+   eval(parse(text=paste("val3$",i,"spacing <- componentspacing(val3,val3$index,val3$CF..Time.)",sep="")))
+   eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
+ }
 
 val3$part2<-factor(val3$part)
 val3$KC..Content. = val3$content_id
@@ -263,18 +263,44 @@ val3$KC..Content.[ val3$KC..Content. %in% names(which(table(val3$KC..Content.) <
 val3$KC..Default.2 = val3$KC..Default.
 val3$KC..Default.2[ val3$KC..Default.2 %in% names(which(table(val3$KC..Default.) < 10)) ] = "foo"
 val3$KC2_part = paste(val3$KC..Default.2,val3$part,sep="")
+
+val3$stu_part = paste(val3$Anon.Student.Id,val3$part,sep="")
+
+
+for(i in "KC2_part"){
+  print(i)
+  val3$index<-paste(eval(parse(text=paste("val3$",i,sep=""))),val3$Anon.Student.Id,sep="")
+  eval(parse(text=paste("val3$",i,"spacing <- componentspacing(val3,val3$index,val3$CF..Time.)",sep="")))
+  eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
+}
+
+#Getting negative infinity loglikelihood if using log counts for KC2_part
+#or if using linesuc+linefail+lineafm
+#problem disappears if using only linesuc OR linefail OR lineafm
+#So could be due to no KC*part combination in some cases making NAs
+#https://stats.stackexchange.com/questions/405701/what-does-it-mean-when-the-negative-log-likelihood-returns-infinity
 system.time(modelob<-LKT(data=val3,
-                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","KC..Default.2",
-                                      "KC..Default.2","KC..Default.2","num_prior_lecture","priorExp",
+                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                      "KC..Default.2","KC..Default.2","KC..Default.2",
+                                      "num_prior_lecture","priorExp",
                                       "part",compKC,compKC,
-                                      "KC2_part","KC2_part"),
-                         features=c("intercept","intercept","propdec","logsuc$",
-                                    "logfail$","lineafm$","lineafm","intercept",
+                                      "KC2_part","KC2_part",
+                                      "KC2_part",
+                                      "KC2_part"
+                                    ),
+                         features=c("intercept","intercept","propdec",
+                                   "logsuc$","logfail$","lineafm$",
+                                    "lineafm","intercept",
                                     "intercept","clinesuc","clinefail",
-                                    "logitdec$","intercept"),
+                                    "logitdec$","intercept",
+                                    "lineafm$",
+                                    "recency$"
+                                   ),
                          #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
-                         fixedpars=c(.8221,.65),seedpars=c(NA,NA),interc = TRUE))
+                         fixedpars=c(.82,
+                                     .65,.3),seedpars=c(NA,NA,NA),interc = TRUE))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
+
 
 
 View(modelob$model$data)
@@ -319,3 +345,4 @@ modelvs<-t(modelvs)
 colnames(modelvs)<-"coefficient"
 
 pred<-predict(m,predictset2,proba=TRUE)$probabilities
+
