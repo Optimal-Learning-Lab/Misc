@@ -298,33 +298,37 @@ modelob_p<-LKT(data=val3,
 val3$pred = modelob_p$prediction[,2]
 
 
-#Getting negative infinity loglikelihood if using log counts for KC2_part
-#or if using linesuc+linefail+lineafm
-#problem disappears if using only linesuc OR linefail OR lineafm
-#So could be due to no KC*part combination in some cases making NAs
+#As N increases model AUC drops off, I think tail distribution students appear and mess it up
+#Need to account for their outlier type behavior, identify them somehow via trial duration or something
+#Negative infinity loglik with small N
 #https://stats.stackexchange.com/questions/405701/what-does-it-mean-when-the-negative-log-likelihood-returns-infinity
-system.time(modelob<-LKT(data=val3,
+system.time(modelob<-LKT(data=smallSet(val3,1000),
                          components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
                                       "KC..Default.2","KC..Default.2","KC..Default.2",
                                       "num_prior_lecture","priorExp",
                                       "part",compKC,compKC,
                                       "KC2_part","KC2_part",
+                                      "KC2_part","KC2_part", "KC2_part",
+                                      "KC2_part","KC2_part","KC2_part",
                                       "KC2_part",
-                                      "KC2_part", "KC2_part", "KC2_part",
                                       "Anon.Student.Id"
                                     ),
                          features=c("intercept","intercept","propdec",
-                                   "logsuc$","logfail$","lineafm$",
+                                   "logsuc$","logfail$","logafm$",
                                     "lineafm","intercept",
                                     "intercept","clinesuc","clinefail",
                                     "logitdec$","intercept",
                                     "logafm$","logsuc$","logfail$",
+                                    "expdecafm$", "expdecsuc$", "expdecfail$",
                                     "recency$",
                                     "pderr"
                                    ),
                          #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
                          fixedpars=c(.82,
-                                     .65,.3,.7),seedpars=c(NA,NA,NA),interc = TRUE))
+                                     .65,
+                                     .6,.6,.6,
+                                     .3,
+                                     .7),seedpars=c(NA,NA,NA,NA,NA),interc = TRUE))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
 
 #CALIBRATION PLOT
@@ -335,10 +339,41 @@ plot(actual_bin,pred_bin,xlim=c(0,1),ylim=c(0,1))
 
 hist(modelob$prediction[,1])
 
-View(modelob$model$data)
-summary(modelob$model)
+#We've got a false positive problem
+hist(modelob$prediction[which(val$CF..ansbin.==0),1])
+val3$pred2 = modelob$prediction[,1]
+
+median(modelob$newdata$logafmKC2_part[which(val3$pred2>.8 & val3$CF..ansbin.==0)])
+median(modelob$newdata$logafmKC2_part[which(val3$pred2<.4 & val3$CF..ansbin.==0)])
 
 
+#Proportion of really egregious errors normalized by amount of data being in that part
+table((modelob$newdata$part[which(val3$pred2>.8 & val3$CF..ansbin.==0)]))/table(modelob$newdata$part)
+
+hist(modelob$prediction[which(val$CF..ansbin.==1),1])
+
+#What is relationship between suc/fail trial duration and model error?
+subj_desc = matrix(nrow=length(unq),ncol=6)
+for( i in 1:length(unq)){
+  print(i)
+  tmp_idx = which(val3$Anon.Student.Id %in% unq[i])
+  if(mean(val3$CF..ansbin.[tmp_idx]) %ni% c(0,1)){
+  subj_desc[i,1] = auc(val3$CF..ansbin.[tmp_idx],val3$pred2[tmp_idx],verbose=FALSE)
+  }
+  subj_desc[i,2] = sqrt(mean((val3$pred2[tmp_idx]-val3$CF..ansbin.[tmp_idx])^2)) #rmse 
+  subj_desc[i,3] = mean(val3$Duration..sec.[which(val3$Anon.Student.Id %in% unq[i] & val$CF..ansbin.==0)])#fail Duration
+  subj_desc[i,4] = mean(val3$Duration..sec.[which(val3$Anon.Student.Id %in% unq[i] & val$CF..ansbin.==1)])#succ Duration
+  subj_desc[i,5] = mean(val3$CF..ansbin.[which(val3$Anon.Student.Id %in% unq[i])])
+  subj_desc[i,6] = length(val3$CF..ansbin.[which(val3$Anon.Student.Id %in% unq[i])])
+  
+  }
+colMedians(subj_desc,na.rm=TRUE)
+plot((subj_desc[,5]),log(subj_desc[,6]))
+plot((subj_desc[,5]),subj_desc[,1])
+plot((subj_desc[,1]),subj_desc[,5])
+plot((subj_desc[,1]),log(subj_desc[,3]))
+plot((subj_desc[,1]),log(subj_desc[,4]))
+cor.test((subj_desc[,1]),subj_desc[,5])
 
 #auc(modelob$model$model$CF..ansbin.,ifelse(predict(modelob$model,type="response")<0,0,
 #                                           ifelse(predict(modelob$model,type="response")>1,1,predict(modelob$model,type="response"))))
