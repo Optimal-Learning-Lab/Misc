@@ -16,7 +16,7 @@ library(stringr)
 #get kaggle data
 #setwd("C:/Users/lukee/Desktop/Kaggle/RIIID")
 #example small file below, but we need to fit with larger N probably:
-riiid = read.csv("riiid_n300.csv")
+riiid = read.csv("riiid_n1000.csv")
 questions = read.csv("questions.csv")
 #split tags into separate columns
 #Questions.csv allegedly has sufficient information to generate KC model: https://www.kaggle.com/andradaolteanu/answer-correctness-rapids-crazy-fast
@@ -39,7 +39,7 @@ for(i in 1:length(questions$tags)){
 #Submission rules might mean we have to return to original names later
 names(riiid)[names(riiid) == "user_id"] <- "Anon.Student.Id"
 set.seed(5)
-val = smallSet(riiid,500)
+val = smallSet(riiid,1000)
 
 #add columns for tags
 which(val$content_id[1] == questions$question_id)
@@ -274,6 +274,30 @@ for(i in "KC2_part"){
   eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
 }
 
+
+
+modelob_p<-LKT(data=val3,
+             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                          "KC..Default.2","KC..Default.2","KC..Default.2",
+                          "num_prior_lecture","priorExp",
+                          "part",compKC,compKC,
+                          "KC2_part","KC2_part",
+                          "KC2_part",
+                          "KC2_part"
+             ),
+             features=c("intercept","intercept","propdec",
+                        "logsuc$","logfail$","lineafm$",
+                        "lineafm","intercept",
+                        "intercept","clinesuc","clinefail",
+                        "logitdec$","intercept",
+                        "lineafm$",
+                        "recency$"
+             ),
+             fixedpars=c(.82,
+                         .65,.3,.7),seedpars=c(NA,NA,NA),interc = TRUE)
+val3$pred = modelob_p$prediction[,2]
+
+
 #Getting negative infinity loglikelihood if using log counts for KC2_part
 #or if using linesuc+linefail+lineafm
 #problem disappears if using only linesuc OR linefail OR lineafm
@@ -285,8 +309,9 @@ system.time(modelob<-LKT(data=val3,
                                       "num_prior_lecture","priorExp",
                                       "part",compKC,compKC,
                                       "KC2_part","KC2_part",
-                                      "KC2_part","KC2_part","KC2_part",
-                                      "KC2_part"
+                                      "KC2_part",
+                                      "KC2_part", "KC2_part", "KC2_part",
+                                      "Anon.Student.Id"
                                     ),
                          features=c("intercept","intercept","propdec",
                                    "logsuc$","logfail$","lineafm$",
@@ -294,28 +319,26 @@ system.time(modelob<-LKT(data=val3,
                                     "intercept","clinesuc","clinefail",
                                     "logitdec$","intercept",
                                     "lineafm$","linesuc$","linefail$",
-                                    "recency$"
+                                    "recency$",
+                                    "pderr"
                                    ),
                          #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
                          fixedpars=c(.82,
-                                     .65,.3),seedpars=c(NA,NA,NA),interc = TRUE))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction[,2])
+                                     .65,.3,.7),seedpars=c(NA,NA,NA),interc = TRUE))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
 
-
+#CALIBRATION PLOT
 val3$cuts = cut(modelob$prediction[,1], breaks = 100)
 actual_bin=tapply(val3$CF..ansbin.,val3$cuts,function(x){mean(x)})
-pred_bin=tapply(modelob$prediction[,2],val3$cuts,function(x){mean(x)})
-plot(actual_bin,pred_bin)
+pred_bin=tapply(modelob$prediction[,1],val3$cuts,function(x){mean(x)})
+plot(actual_bin,pred_bin,xlim=c(0,1),ylim=c(0,1))
+
+hist(modelob$prediction[,1])
 
 View(modelob$model$data)
 summary(modelob$model)
 
-modelob<-LKT(data=val3,
-             components=c("KC..Content."),
-             features=c("intercept")
-)
 
-modelob$r2
 
 #auc(modelob$model$model$CF..ansbin.,ifelse(predict(modelob$model,type="response")<0,0,
 #                                           ifelse(predict(modelob$model,type="response")>1,1,predict(modelob$model,type="response"))))
