@@ -318,7 +318,7 @@ system.time(modelob<-LKT(data=val3,
                                     "lineafm","intercept",
                                     "intercept","clinesuc","clinefail",
                                     "logitdec$","intercept",
-                                    "lineafm$","linesuc$","linefail$",
+                                    "logafm$","logsuc$","logfail$",
                                     "recency$",
                                     "pderr"
                                    ),
