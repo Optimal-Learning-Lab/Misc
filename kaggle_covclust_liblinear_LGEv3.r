@@ -1,5 +1,4 @@
-#File takes in subset of RIIID dataset, applies covariance clustering to make KC model, then fits it
-#Generates some important features, and trial duration.
+#modelob (line 312) AUC = .8412
 
 library(reshape2)
 library(car)
@@ -12,6 +11,9 @@ library(Rgraphviz)
 library(pROC)
 library(dplyr)
 library(stringr)
+library(SparseM)
+library(LiblineaR)
+library(Matrix)
 `%ni%` = Negate(`%in%`)
 #get kaggle data
 #setwd("C:/Users/lukee/Desktop/Kaggle/RIIID")
@@ -277,33 +279,36 @@ for(i in "KC2_part"){
 
 
 modelob_p<-LKT(data=val3,
-             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
-                          "KC..Default.2","KC..Default.2","KC..Default.2",
+             components=c("KC..Content.",
                           "num_prior_lecture","priorExp",
-                          "part",compKC,compKC,
-                          "KC2_part","KC2_part",
+                          "part",compKC,
+                          "KC2_part",
                           "KC2_part",
                           "KC2_part"
              ),
-             features=c("intercept","intercept","propdec",
-                        "logsuc$","logfail$","lineafm$",
+             features=c("intercept",
                         "lineafm","intercept",
-                        "intercept","clinesuc","clinefail",
-                        "logitdec$","intercept",
+                        "intercept","clineafm",
+                        "intercept",
                         "lineafm$",
                         "recency$"
              ),
              fixedpars=c(.82,
                          .65,.3,.7),seedpars=c(NA,NA,NA),interc = TRUE)
-val3$pred = modelob_p$prediction[,2]
+val3$pred = modelob_p$prediction[,1]
 
 
 #As N increases model AUC drops off, I think tail distribution students appear and mess it up
+#Low performing students are fit worse, failures are poorly predicted
+#What about recent rolling average interacting with other features?
+#Three way interactions (ask phil)
+#regularization
+
 #Need to account for their outlier type behavior, identify them somehow via trial duration or something
 #Negative infinity loglik with small N
 #https://stats.stackexchange.com/questions/405701/what-does-it-mean-when-the-negative-log-likelihood-returns-infinity
-system.time(modelob<-LKT(data=smallSet(val3,1000),
-                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+system.time(modelob<-LKT(data=val3,
+                         components=c("KC..Content.","Anon.Student.Id",
                                       "KC..Default.2","KC..Default.2","KC..Default.2",
                                       "num_prior_lecture","priorExp",
                                       "part",compKC,compKC,
@@ -313,10 +318,10 @@ system.time(modelob<-LKT(data=smallSet(val3,1000),
                                       "KC2_part",
                                       "Anon.Student.Id"
                                     ),
-                         features=c("intercept","intercept","propdec",
+                         features=c("intercept","propdec",
                                    "logsuc$","logfail$","logafm$",
                                     "lineafm","intercept",
-                                    "intercept","clinesuc","clinefail",
+                                    "intercept","clogsuc","clogfail",
                                     "logitdec$","intercept",
                                     "logafm$","logsuc$","logfail$",
                                     "expdecafm$", "expdecsuc$", "expdecfail$",
@@ -326,17 +331,22 @@ system.time(modelob<-LKT(data=smallSet(val3,1000),
                          #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
                          fixedpars=c(.82,
                                      .65,
-                                     .6,.6,.6,
+                                     .3,.8,.8,
                                      .3,
-                                     .7),seedpars=c(NA,NA,NA,NA,NA),interc = TRUE))
+                                     .999),seedpars=c(NA,NA,NA,NA,NA,NA,NA),type=0,cost=512,interc = TRUE))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
+#type=0;cost=512;auc=.8413
+#type=6;cost=512;auc=.8453
 
-#CALIBRATION PLOT
+#cross-validate? Currently predict(model,...) doesn't work, liblinear objects want different test data format
+LKT_cv(components,features,offsetl=NA,fixedl=fixedpars,elastictest=FALSE,val=val3,interc=TRUE)
+
+#CALIBRATION PLOT - without student intercepts we have poor calibration
 val3$cuts = cut(modelob$prediction[,1], breaks = 100)
 actual_bin=tapply(val3$CF..ansbin.,val3$cuts,function(x){mean(x)})
 pred_bin=tapply(modelob$prediction[,1],val3$cuts,function(x){mean(x)})
 plot(actual_bin,pred_bin,xlim=c(0,1),ylim=c(0,1))
-
+plot(actual_bin,pred_bin)
 hist(modelob$prediction[,1])
 
 #We've got a false positive problem
@@ -346,8 +356,13 @@ val3$pred2 = modelob$prediction[,1]
 median(modelob$newdata$logafmKC2_part[which(val3$pred2>.8 & val3$CF..ansbin.==0)])
 median(modelob$newdata$logafmKC2_part[which(val3$pred2<.4 & val3$CF..ansbin.==0)])
 
+#Not good at predicting failures
+median(modelob$prediction[which(modelob$newdata$CF..ansbin.==1),1])
+median(modelob$prediction[which(modelob$newdata$CF..ansbin.==0),1])
 
 #Proportion of really egregious errors normalized by amount of data being in that part
+#Becomes an obvious issue in absence of student intercepts
+#Most data in part 5, rest get underrepresented!
 table((modelob$newdata$part[which(val3$pred2>.8 & val3$CF..ansbin.==0)]))/table(modelob$newdata$part)
 
 hist(modelob$prediction[which(val$CF..ansbin.==1),1])
@@ -355,7 +370,8 @@ hist(modelob$prediction[which(val$CF..ansbin.==1),1])
 #What is relationship between suc/fail trial duration and model error?
 subj_desc = matrix(nrow=length(unq),ncol=6)
 for( i in 1:length(unq)){
-  print(i)
+  
+  if(i%%100 == 0){print(i)}
   tmp_idx = which(val3$Anon.Student.Id %in% unq[i])
   if(mean(val3$CF..ansbin.[tmp_idx]) %ni% c(0,1)){
   subj_desc[i,1] = auc(val3$CF..ansbin.[tmp_idx],val3$pred2[tmp_idx],verbose=FALSE)
@@ -368,8 +384,12 @@ for( i in 1:length(unq)){
   
   }
 colMedians(subj_desc,na.rm=TRUE)
-plot((subj_desc[,5]),log(subj_desc[,6]))
+boxplot(subj_desc[,6],ylim=c(0,3000))
+hist(subj_desc[,6],breaks=100)
+quantile(subj_desc[,6],probs = seq(0, 1, 0.05))
+plot((subj_desc[,5]),(subj_desc[,6]))
 plot((subj_desc[,5]),subj_desc[,1])
+plot((subj_desc[,6]),subj_desc[,1])
 plot((subj_desc[,1]),subj_desc[,5])
 plot((subj_desc[,1]),log(subj_desc[,3]))
 plot((subj_desc[,1]),log(subj_desc[,4]))
@@ -379,11 +399,6 @@ cor.test((subj_desc[,1]),subj_desc[,5])
 #                                           ifelse(predict(modelob$model,type="response")>1,1,predict(modelob$model,type="response"))))
 
 
-
-
-library(SparseM)
-library(LiblineaR)
-library(Matrix)
 
 val3$contf<-as.factor(val3$KC..Content.)
 X<-sparse.model.matrix(~-1+contf,data=val3)
@@ -408,3 +423,29 @@ colnames(modelvs)<-"coefficient"
 
 pred<-predict(m,predictset2,proba=TRUE)$probabilities
 
+
+
+###SIMPLER, with only afm type stuff
+
+system.time(modelob_s<-LKT(data=smallSet(val3,500),
+                         components=c("KC..Content.","KC..Default.2","num_prior_lecture",
+                                      "priorExp","part",compKC,
+                                      "KC2_part","KC2_part","KC2_part",
+                                      "KC2_part","Anon.Student.Id",compKC
+                         ),
+                         features=c("intercept","logafm$","logafm",
+                                    "intercept","intercept","clogafm",
+                                    "intercept","logafm$","expdecafm$",
+                                    "recency$","pderr","crecency"
+                         ),
+                         covariates = c(NA,NA,NA,
+                                        NA,NA,NA,
+                                        NA,NA,NA,
+                                         NA,NA,"priorExp"),
+                         fixedpars=c(.3,
+                                     .7,.99,.5),seedpars=c(NA,NA,NA,NA),cross=0,bias=0,type=0,cost=512,interc = TRUE))
+auc(modelob_s$newdata$CF..ansbin.,modelob_s$prediction[,1])
+
+#cost=512, auc = .7747
+#cost=1024, auc = .7749
+#cost=2048, auc = .7752
