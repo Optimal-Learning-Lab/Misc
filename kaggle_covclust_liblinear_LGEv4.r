@@ -1,4 +1,4 @@
-#modelob (line 312) AUC = .8412
+#modelob (line 359) AUC = .8162 no student intercepts with random N=1000 from larger 5k dataset
 
 library(reshape2)
 library(car)
@@ -16,9 +16,9 @@ library(LiblineaR)
 library(Matrix)
 `%ni%` = Negate(`%in%`)
 #get kaggle data
-#setwd("C:/Users/lukee/Desktop/Kaggle/RIIID")
+setwd("C:/Users/lukee/Desktop/Kaggle/RIIID")
 #example small file below, but we need to fit with larger N probably:
-riiid = read.csv("riiid_n1000.csv")
+riiid = read.csv("riiid_n5000.csv")
 questions = read.csv("questions.csv")
 #split tags into separate columns
 #Questions.csv allegedly has sufficient information to generate KC model: https://www.kaggle.com/andradaolteanu/answer-correctness-rapids-crazy-fast
@@ -41,7 +41,7 @@ for(i in 1:length(questions$tags)){
 #Submission rules might mean we have to return to original names later
 names(riiid)[names(riiid) == "user_id"] <- "Anon.Student.Id"
 set.seed(5)
-val = smallSet(riiid,1000)
+val = smallSet(riiid,2000)
 
 #add columns for tags
 which(val$content_id[1] == questions$question_id)
@@ -258,14 +258,16 @@ compKC<-paste(paste("c",1:posKC,sep=""),collapse="_")
    eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
  }
 
-val3$part2<-factor(val3$part)
+KC_quants = quantile(table(val3$KC..Content.),seq(0,1,.05))
+KCdef_quants = quantile(table(val3$KC..Default.),seq(0,1,.05))
+ val3$part2<-factor(val3$part)
 val3$KC..Content. = val3$content_id
 val3$KC..Content.[ val3$KC..Content. %in% names(which(table(val3$KC..Content.) < 10)) ] = "foo"
 
 val3$KC..Default.2 = val3$KC..Default.
 val3$KC..Default.2[ val3$KC..Default.2 %in% names(which(table(val3$KC..Default.) < 10)) ] = "foo"
-val3$KC2_part = paste(val3$KC..Default.2,val3$part,sep="")
 
+val3$KC2_part = paste(val3$KC..Default.2,val3$part,sep="")
 val3$stu_part = paste(val3$Anon.Student.Id,val3$part,sep="")
 
 
@@ -276,8 +278,48 @@ for(i in "KC2_part"){
   eval(parse(text=paste("val3$",i,"relspacing <- componentspacing(val3,val3$index,val3$CF..reltime.)",sep="")))
 }
 
+#First part
+val3$firstpart = rep(NA,length(val3[,1]))
+val3$prevpart = rep(NA,length(val3[,1]))
+val3$prevdiff = rep(NA,length(val3[,1]))
+val3$bigcount = rep(NA,length(val3[,1]))
+for(i in 1:length(unq)){
+  print(i)
+  idx = which(val3$Anon.Student.Id %in% unq[i])
+  val3$firstpart[idx] = val3$part[which(val3$Anon.Student.Id %in% unq[i])][1]
+  
+  #mark when N previous trials is above 200
+  tmp_bc = rep(0,length(idx))
+  if(length(idx)>=50){tmp_bc[100:length(idx)]=1}
+  if(length(idx)>=100){tmp_bc[100:length(idx)]=2}
+  if(length(idx)>=200){tmp_bc[200:length(idx)]=3}
+  if(length(idx)>=300){tmp_bc[300:length(idx)]=4}
+  if(length(idx)>=400){tmp_bc[400:length(idx)]=5}
+  if(length(idx)>=500){tmp_bc[500:length(idx)]=6}
+  if(length(idx)>=600){tmp_bc[600:length(idx)]=7}
+  if(length(idx)>=700){tmp_bc[700:length(idx)]=8}
+  if(length(idx)>=800){tmp_bc[800:length(idx)]=9}
+  if(length(idx)>=900){tmp_bc[900:length(idx)]=10}
+  if(length(idx)>=1000){tmp_bc[1000:length(idx)]=11}
+  if(length(idx)>=2000){tmp_bc[2000:length(idx)]=12}
+  val3$bigcount[idx] = tmp_bc
+  #most recent previous different part (did they go from 4 to 5, or 5 to 4?)
+  tmp_prevpart=rep(0,length(idx))
+  for(j in 2:length(idx)){
+    tmp_part = val3$part[idx[1:(j)]]
+    #most recent part that is different
+    tmp_prevpart[j] =   ifelse(is.na(tmp_part[max(which(diff(tmp_part)!=0))]),0,tmp_part[max(which(diff(tmp_part)!=0))])
+  }
+  val3$prevpart[idx] = tmp_prevpart
+  val3$prevdiff[idx] = tmp_part-tmp_prevpart#ifelse(tmp_part-tmp_prevpart>0,1,-1)
+}
 
+#make different transitions have own intercepts
+val3$part_transition = paste(val3$part,val3$prevpart,sep="")
+#if started on part 5, meaningful that now on part x?
+val3$part_firstpart = paste(val3$part,val3$firstpart,sep="")
 
+val3$firstpart = as.factor(val3$firstpart)
 modelob_p<-LKT(data=val3,
              components=c("KC..Content.",
                           "num_prior_lecture","priorExp",
@@ -293,13 +335,14 @@ modelob_p<-LKT(data=val3,
                         "lineafm$",
                         "recency$"
              ),
-             fixedpars=c(.82,
-                         .65,.3,.7),seedpars=c(NA,NA,NA),interc = TRUE)
+             fixedpars=c(.22),seedpars=c(NA),bias=1,interc = TRUE)
 val3$pred = modelob_p$prediction[,1]
+auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
 
+keep_names = (names(which(table(val3$Anon.Student.Id)<1000)))
 
 #As N increases model AUC drops off, I think tail distribution students appear and mess it up
-#Low performing students are fit worse, failures are poorly predicted
+#failures are poorly predicted
 #What about recent rolling average interacting with other features?
 #Three way interactions (ask phil)
 #regularization
@@ -307,8 +350,14 @@ val3$pred = modelob_p$prediction[,1]
 #Need to account for their outlier type behavior, identify them somehow via trial duration or something
 #Negative infinity loglik with small N
 #https://stats.stackexchange.com/questions/405701/what-does-it-mean-when-the-negative-log-likelihood-returns-infinity
-system.time(modelob<-LKT(data=val3,
-                         components=c("KC..Content.","Anon.Student.Id",
+
+#try log time for spacing
+smallVal = smallSet(val3,1000)
+val3$KC..Content.=as.factor(val3$KC..Content.)
+shortVal = val3
+shortVal = shortVal[which(shortVal$Anon.Student.Id %in% names(which(table(shortVal$Anon.Student.Id)<200))),]
+system.time(modelob<-LKT(data=smallVal,
+                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
                                       "KC..Default.2","KC..Default.2","KC..Default.2",
                                       "num_prior_lecture","priorExp",
                                       "part",compKC,compKC,
@@ -316,25 +365,48 @@ system.time(modelob<-LKT(data=val3,
                                       "KC2_part","KC2_part", "KC2_part",
                                       "KC2_part","KC2_part","KC2_part",
                                       "KC2_part",
-                                      "Anon.Student.Id"
+                                      "Anon.Student.Id",
+                                      "prevdiff",
+                                      "prevpart",
+                                      "part_transition",
+                                      "bigcount"
                                     ),
-                         features=c("intercept","propdec",
+                         features=c("intercept","propdec","logafm",
                                    "logsuc$","logfail$","logafm$",
-                                    "lineafm","intercept",
-                                    "intercept","clogsuc","clogfail",
-                                    "logitdec$","intercept",
+                                    "lineafm","intercept","intercept",
+                                    "clogsuc","clogfail","logitdec$",
+                                    "intercept",
                                     "logafm$","logsuc$","logfail$",
                                     "expdecafm$", "expdecsuc$", "expdecfail$",
                                     "recency$",
-                                    "pderr"
+                                    "pderr",
+                                    "intercept",
+                                    "intercept",
+                                    "intercept",
+                                    "intercept"
                                    ),
-                         #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                         covariates = c(NA,NA,NA,
+                                        NA,NA,NA,
+                                        NA,NA,NA,
+                                        NA,NA,NA,
+                                        NA,NA,NA,
+                                        NA,NA,NA,
+                                        NA,NA,NA),
                          fixedpars=c(.82,
                                      .65,
                                      .3,.8,.8,
-                                     .3,
-                                     .999),seedpars=c(NA,NA,NA,NA,NA,NA,NA),type=0,cost=512,interc = TRUE))
+                                     .25,
+                                     .999),seedpars=c(NA,NA,NA,NA,NA,NA,NA),bias=1,type=0,cost=512,interc = TRUE))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction[,1])
+
+modelob$coefs[1:13,]
+
+glm_seg=(glm(modelob$newdata$CF..ansbin.~modelob$prediction[,1]+modelob$newdata$seg_logafmKC2_part,family=binomial))
+
+auc(modelob$newdata$CF..ansbin.,predict(glm_seg,type="response"))
+
+#dropping High N subj: .8468 w/ int, vs. .8309 w/o int
+#with high N subj  .8152 w/ int, w/o int = .8036
 #type=0;cost=512;auc=.8413
 #type=6;cost=512;auc=.8453
 
@@ -350,7 +422,7 @@ plot(actual_bin,pred_bin)
 hist(modelob$prediction[,1])
 
 #We've got a false positive problem
-hist(modelob$prediction[which(val$CF..ansbin.==0),1])
+hist(modelob$prediction[which(val3$CF..ansbin.==0),1])
 val3$pred2 = modelob$prediction[,1]
 
 median(modelob$newdata$logafmKC2_part[which(val3$pred2>.8 & val3$CF..ansbin.==0)])
@@ -387,10 +459,12 @@ colMedians(subj_desc,na.rm=TRUE)
 boxplot(subj_desc[,6],ylim=c(0,3000))
 hist(subj_desc[,6],breaks=100)
 quantile(subj_desc[,6],probs = seq(0, 1, 0.05))
-plot((subj_desc[,5]),(subj_desc[,6]))
+plot((subj_desc[,6]),(subj_desc[,5]))
 plot((subj_desc[,5]),subj_desc[,1])
 plot((subj_desc[,6]),subj_desc[,1])
 plot((subj_desc[,1]),subj_desc[,5])
+plot((subj_desc[,1]),subj_desc[,6])
+plot((subj_desc[,2]),subj_desc[,6])
 plot((subj_desc[,1]),log(subj_desc[,3]))
 plot((subj_desc[,1]),log(subj_desc[,4]))
 cor.test((subj_desc[,1]),subj_desc[,5])
@@ -427,7 +501,7 @@ pred<-predict(m,predictset2,proba=TRUE)$probabilities
 
 ###SIMPLER, with only afm type stuff
 
-system.time(modelob_s<-LKT(data=smallSet(val3,500),
+system.time(modelob_s<-LKT(data=val3[which(val3$Anon.Student.Id %in% keep_names),],
                          components=c("KC..Content.","KC..Default.2","num_prior_lecture",
                                       "priorExp","part",compKC,
                                       "KC2_part","KC2_part","KC2_part",
