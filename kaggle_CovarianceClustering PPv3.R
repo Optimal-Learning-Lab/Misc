@@ -25,7 +25,7 @@ questions = fread("questions.csv")
 val <- fread(file="train.csv")
 
 colnames(val)[3]<-"Anon.Student.Id"
-val<-smallSet(val,1000)
+val<-smallSet(val,500)
 #val <-val[1:1000000,]
 #val$content_id<-paste0("v",val$content_id)
 names(val)[names(val) == "answered_correctly"] <- "CF..ansbin."
@@ -33,18 +33,18 @@ val<-val[val$CF..ansbin.>-1,]
 val<-merge(val,questions,by.x="content_id",by.y="question_id")
 val<-val[order(val$row_id),]
 
-
-
-unq=unique(val$Anon.Student.Id)
-val$lecture = rep(0,length(val[,1]))
-val$num_prior_lecture = rep(0,length(val[,1]))
-val$lecture[which(val$user_answer==-1)] = 1 #when lectures, mark down
-val$same_prev_bundle = rep(0,length(val[,1]))
-for( i in 1:length(unq)){
-  tmp_idx = which(val$Anon.Student.Id==unq[i])
-  val$num_prior_lecture[tmp_idx]=cumsum(val$lecture[tmp_idx])
-  val$same_prev_bundle[tmp_idx] = c(0,ifelse(diff(val$bundle_id[tmp_idx],lag=1)==0,1,0))#add padding for lag
-}
+#
+#
+# unq=unique(val$Anon.Student.Id)
+# val$lecture = rep(0,length(val[,1]))
+# val$num_prior_lecture = rep(0,length(val[,1]))
+# val$lecture[which(val$user_answer==-1)] = 1 #when lectures, mark down
+# val$same_prev_bundle = rep(0,length(val[,1]))
+# for( i in 1:length(unq)){
+#   tmp_idx = which(val$Anon.Student.Id==unq[i])
+#   val$num_prior_lecture[tmp_idx]=cumsum(val$lecture[tmp_idx])
+#   val$same_prev_bundle[tmp_idx] = c(0,ifelse(diff(val$bundle_id[tmp_idx],lag=1)==0,1,0))#add padding for lag
+# }
 
 
 names(val)[names(val) == "timestamp"] <- "CF..Time."
@@ -168,16 +168,87 @@ compKC<-paste(paste("c",1:posKC,sep=""),collapse="__")
 
 val$part2<-as.character(val$part)
 val$KC..Content. = val$content_id
+#
+# system.time(modelob<-LKT(data=val,
+#              components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","Anon.Student.Id","KC..Default.","KC..Default.","KC..Default.",
+#                           "num_prior_lecture","priorExp","part",compKC,compKC),
+#              features=c("intercept","intercept","expdecsuc","expdecfail","logsuc$","logfail$","lineafm$",
+#                         "lineafm","intercept","intercept","clinesuc","clinefail"),
+#              #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+#              fixedpars=c(.6,.6),seedpars=c(NA,NA),interc = TRUE,epsilon=1e-6,cost=512))
+# auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+# plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
+#
 
 system.time(modelob<-LKT(data=val,
-             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","Anon.Student.Id","KC..Default.","KC..Default.","KC..Default.",
-                          "num_prior_lecture","priorExp","part",compKC,compKC),
-             features=c("intercept","intercept","expdecsuc","expdecfail","logsuc$","logfail$","lineafm$",
-                        "lineafm","intercept","intercept","clinesuc","clinefail"),
-             #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
-             fixedpars=c(.6,.6),seedpars=c(NA,NA),interc = TRUE,epsilon=1e-6,cost=512))
+                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",paste0("c",1:12)),
+                         features=c("intercept","logsuc","logfail",rep("logit",12)),
+                         #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                         fixedpars=c(rep(.1,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
 
+system.time(modelob<-LKT(data=val,
+                         components=c("Anon.Student.Id","Anon.Student.Id","KC..Default.","KC..Default."),
+                         features=c("logsuc","logfail","expdecsuc","lineafm$"),
+                        # covariates = c(NA,NA,NA,"part2","part2"),
+                         fixedpars=c(NA),seedpars=c(.5),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
+
+system.time(modelob<-LKT(data=val,
+                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","KC..Default.","KC..Default."),
+                         features=c("intercept","logsuc","logfail","logsuc$","logfail$"),
+                        # covariates = c(NA,NA,NA,"part2","part2"),
+                         fixedpars=c(rep(.1,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+system.time(modelob<-LKT(data=val,
+                         components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id"),
+                         features=c("intercept","logsuc","logfail"),
+                         #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                         fixedpars=c(rep(.1,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+x<-modelob[["coefs"]]
+
+rx<-rownames(modelob[["coefs"]])[grep("interceptKC..Content.",rownames(modelob[["coefs"]]))]
+x<- as.data.frame(modelob[["coefs"]][grep("interceptKC..Content.",rownames(modelob[["coefs"]]))])
+
+
+rownames(x)<-gsub("interceptKC..Content.","",rx)
+colnames(x)<-"intval"
+rows<-rownames(x)
+missing<-(1:max(val$KC..Content.))[1:max(val$KC..Content.) %ni% as.numeric(rows)]
+
+x[nrow(x)+1:length(missing),] <- 0
+rownames(x)[(1+nrow(x)-length(missing)):nrow(x)]<-paste0(rownames(x)[(1+nrow(x)-length(missing)):nrow(x)],"C")
+rownames(x)[(1+nrow(x)-length(missing)):nrow(x)]<-missing
+
+x<-x[order(as.numeric(rownames(x))), ,drop = FALSE]
+write.csv(x,file=("content_idintercepts.csv"))
+
+
+
+x<-modelob[["coefs"]]
+
+rx<-rownames(modelob[["coefs"]])[grep("logsucKC..Default.",rownames(modelob[["coefs"]]))]
+x<- as.data.frame(modelob[["coefs"]][grep("logsucKC..Default.",rownames(modelob[["coefs"]]))])
+
+
+rownames(x)<-gsub("logsucKC..Default.","",rx)
+colnames(x)<-"slope"
+rows<-rownames(x)
+missing<-(1:max(val$KC..Default.))[1:max(val$KC..Default.) %ni% as.numeric(rows)]
+
+x[nrow(x)+1:length(missing),] <- 0
+rownames(x)[(1+nrow(x)-length(missing)):nrow(x)]<-paste0(rownames(x)[(1+nrow(x)-length(missing)):nrow(x)],"C")
+rownames(x)[(1+nrow(x)-length(missing)):nrow(x)]<-missing
+
+x<-x[order(as.numeric(rownames(x))), ,drop = FALSE]
+write.csv(x,file=("logsucKC.csv"))
