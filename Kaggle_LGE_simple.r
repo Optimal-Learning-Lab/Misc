@@ -276,6 +276,16 @@ auc(modelob2$newdata$CF..ansbin.,modelob2$prediction)
 length(modelob2$coefs)
 
                                
+# .7639 one step up in complexity
+system.time(modelob_s2<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content."
+                                         ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$"),
+                            fixedpars=c(NA),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s2$newdata$CF..ansbin.,modelob_s2$prediction)
+length(modelob_s2$coefs)               
                                
 #.766 step up in complexity
 system.time(modelob_s3<-LKT(data=val,
