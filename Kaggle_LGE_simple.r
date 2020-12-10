@@ -290,10 +290,10 @@ length(modelob_s2$coefs)
 #.766 step up in complexity
 system.time(modelob_s3<-LKT(data=val,
                             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
-                                         "KC..Content.","KC..Content.","KC..Content.","KC..Content."
+                                         "KC..Content.","KC..Content.","KC..Content."
                             ),
                             features=c("intercept","logsuc","logfail",
-                                       "intercept","logsuc$","logfail$","logit$"),
+                                       "logsuc$","logfail$","logit$"),
                             #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
                             fixedpars=c(.11),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
 auc(modelob_s3$newdata$CF..ansbin.,modelob_s3$prediction)
@@ -302,10 +302,10 @@ length(modelob_s3$coefs)
 # .765 logit for student instead of KC..Content
 system.time(modelob_s4<-LKT(data=val,
                             components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","Anon.Student.Id",
-                                         "KC..Content.","KC..Content.","KC..Content."
+                                         "KC..Content.","KC..Content."
                             ),
                             features=c("intercept","logsuc","logfail","logit",
-                                       "intercept","logsuc$","logfail$"),
+                                       "logsuc$","logfail$"),
                             #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
                             fixedpars=c(.11),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
 auc(modelob_s4$newdata$CF..ansbin.,modelob_s4$prediction)
