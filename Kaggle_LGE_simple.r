@@ -311,3 +311,29 @@ system.time(modelob_s4<-LKT(data=val,
 auc(modelob_s4$newdata$CF..ansbin.,modelob_s4$prediction)
 length(modelob_s4$coefs)
                                
+# .7671 logit for student AND of KC..Content
+system.time(modelob_s5<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content.","KC..Content.","Anon.Student.Id"
+                            ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$","logit$","logit"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(.001,.999),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s5$newdata$CF..ansbin.,modelob_s5$prediction)
+length(modelob_s5$coefs)
+
+#.768
+system.time(modelob_s6<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content.","KC..Content.","Anon.Student.Id",
+                                         compKC,compKC
+                            ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$","logit$","logit",
+                                       "clogsuc","clogfail"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(.001,.999),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s6$newdata$CF..ansbin.,modelob_s6$prediction)
+length(modelob_s6$coefs)
+                               
