@@ -337,3 +337,24 @@ system.time(modelob_s6<-LKT(data=val,
 auc(modelob_s6$newdata$CF..ansbin.,modelob_s6$prediction)
 length(modelob_s6$coefs)
                                
+                               
+#student-level recency example model
+#Recency for just student level. 
+#Compare AUC after big delays vs. not. This is where most of our existing simple models fall down.
+#This one help a bit, but not quite enough. Different decay rates across KCs might be culprit.
+val$qRecency = rep(0,length(val$CF..Time.))
+for(i in 1:length(unq)){
+  print(i)
+  idx=which(val$Anon.Student.Id %in% unq[i])
+  val$qRecency[idx] = c(0,diff(val$CF..Time.[idx]))
+}
+      
+#noticed I sometimes get -inf likelihood. Not overfitting I don't think because it's one additional parameter... 
+val$qRecency2 = ifelse(val$qRecency>0,val$qRecency^-.5,0)
+system.time(modelob_s7<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","qRecency2"),
+                            features=c("intercept","logsuc","logfail","numer"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(NA),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s7$newdata$CF..ansbin.,modelob_s2$prediction)
+                               
