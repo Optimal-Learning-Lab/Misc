@@ -238,7 +238,12 @@ val$part_transition = paste(val$part,val$prevpart,sep="")
 #if started on part 5, meaningful that now on part x?
 val$part_firstpart = paste(val$part,val$firstpart,sep="")
 
-#smallval=smallSet(val,2500)
+
+#.784  clinesuc+clinefail w/o errordec
+#.7845 clogsuc+clogfail w/o errordec
+#.7847 same as above + bigcount
+#.7851 Same as above + prevdiff+prevpart+part_firstpart
+#.7904 Same as above + errordec                               
 smallval$CF..ansbin.[1]
 smallval$CF..ansbin.[1]=1
 system.time(modelob2<-LKT(data=smallval,
@@ -269,8 +274,87 @@ system.time(modelob2<-LKT(data=smallval,
 #smallval$pred = modelob2$prediction
 auc(modelob2$newdata$CF..ansbin.,modelob2$prediction)
 length(modelob2$coefs)
-#.784  clinesuc+clinefail w/o errordec
-#.7845 clogsuc+clogfail w/o errordec
-#.7847 same as above + bigcount
-#.7851 Same as above + prevdiff+prevpart+part_firstpart
-#.7904 Same as above + errordec
+
+                               
+# .7639 one step up in complexity
+system.time(modelob_s2<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content."
+                                         ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$"),
+                            fixedpars=c(NA),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s2$newdata$CF..ansbin.,modelob_s2$prediction)
+length(modelob_s2$coefs)               
+                               
+#.766 step up in complexity
+system.time(modelob_s3<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content.","KC..Content."
+                            ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$","logit$"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(.11),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s3$newdata$CF..ansbin.,modelob_s3$prediction)
+length(modelob_s3$coefs)
+
+# .765 logit for student instead of KC..Content. Interestingly, param for logit doesn't have much impact on fit
+system.time(modelob_s4<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content."
+                            ),
+                            features=c("intercept","logsuc","logfail","logit",
+                                       "logsuc$","logfail$"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(.99),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s4$newdata$CF..ansbin.,modelob_s4$prediction)
+length(modelob_s4$coefs)
+                               
+# .7671 logit for student AND of KC..Content
+system.time(modelob_s5<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content.","KC..Content.","Anon.Student.Id"
+                            ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$","logit$","logit"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(.001,.999),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s5$newdata$CF..ansbin.,modelob_s5$prediction)
+length(modelob_s5$coefs)
+
+#.768
+system.time(modelob_s6<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id",
+                                         "KC..Content.","KC..Content.","KC..Content.","Anon.Student.Id",
+                                         compKC,compKC
+                            ),
+                            features=c("intercept","logsuc","logfail",
+                                       "logsuc$","logfail$","logit$","logit",
+                                       "clogsuc","clogfail"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(.001,.999),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s6$newdata$CF..ansbin.,modelob_s6$prediction)
+length(modelob_s6$coefs)
+                               
+                               
+#student-level recency example model
+#Recency for just student level. 
+#Compare AUC after big delays vs. not. This is where most of our existing simple models fall down.
+#This one help a bit, but not quite enough. Different decay rates across KCs might be culprit.
+val$qRecency = rep(0,length(val$CF..Time.))
+for(i in 1:length(unq)){
+  print(i)
+  idx=which(val$Anon.Student.Id %in% unq[i])
+  val$qRecency[idx] = c(0,diff(val$CF..Time.[idx]))
+}
+      
+#noticed I sometimes get -inf likelihood. Not overfitting I don't think because it's one additional parameter... 
+val$qRecency2 = ifelse(val$qRecency>0,val$qRecency^-.5,0)
+system.time(modelob_s7<-LKT(data=val,
+                            components=c("KC..Content.","Anon.Student.Id","Anon.Student.Id","qRecency2"),
+                            features=c("intercept","logsuc","logfail","numer"),
+                            #covariates = c(NA,NA,NA,NA,NA,"part2",NA,NA,NA,NA,NA),
+                            fixedpars=c(NA),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=512))
+auc(modelob_s7$newdata$CF..ansbin.,modelob_s2$prediction)
+                               
