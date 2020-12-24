@@ -457,6 +457,8 @@ valsamp$histsubint[is.na(valsamp$histsubint)]<-0
 valsamp$histcontint[is.na(valsamp$histcontint)]<-0
 setorder(valsamp, simtime)
 
+
+
 system.time(modelob<-LKT(data=valsamp,
                          components=c("histsubint","histcontint"),
                          features=c("numer","numer"),
@@ -464,6 +466,27 @@ system.time(modelob<-LKT(data=valsamp,
                          fixedpars=c(.92),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+
+system.time(modelob<-LKT(data=valsamp,
+                         components=c("histsubint","histcontint","Anon.Student.Id","Anon.Student.Id"),
+                         features=c("numer","numer","logsuc","logfail"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+system.time(modelob<-LKT(data=valsamp,
+                         components=c("histsubint","histcontint","Anon.Student.Id","Anon.Student.Id","part","part","part"),
+                         features=c("numer","numer","logsuc","logfail","logsuc$","logfail$","intercept"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
 
 system.time(modelob<-LKT(data=val,
                          components=c("KC..Content.","Anon.Student.Id",paste0("V",1:189)),
