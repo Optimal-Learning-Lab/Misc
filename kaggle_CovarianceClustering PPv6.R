@@ -89,6 +89,7 @@ val$KC..Default. = val$tags
 val<-val[val$CF..ansbin.!=-1,]
 
 aggdata<-aggregate(val$CF..ansbin.,by=list(val$KC..Default.,val$Anon.Student.Id),FUN=mean)
+#aggdata<- val[,mean(CF..ansbin.),by=list(KC..Default.,val$Anon.Student.Id)]
 colnames(aggdata)<-c('KC..Default.','Anon.Student.Id','CF..ansbin.')
 
 aggdata<-aggdata[with(aggdata,order(KC..Default.)),]
@@ -459,7 +460,7 @@ setorder(valsamp, simtime)
 
 
 
-system.time(modelob<-LKT(data=valsamp,
+system.time(modelob<-LKT(data=rlvl(valsamp),
                          components=c("histsubint","histcontint"),
                          features=c("numer","numer"),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
@@ -469,7 +470,7 @@ plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
 
 
-system.time(modelob<-LKT(data=valsamp,
+system.time(modelob<-LKT(data=rlvl(valsamp),
                          components=c("histsubint","histcontint","Anon.Student.Id","Anon.Student.Id"),
                          features=c("numer","numer","logsuc","logfail"),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
