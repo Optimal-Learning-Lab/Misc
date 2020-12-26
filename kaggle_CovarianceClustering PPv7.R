@@ -5,7 +5,7 @@ library(reshape2)
 library(car)
 library(zoo)
 library(gplots)
-#library(LKT)
+source("C://Users//ppavl//Dropbox//Active projects//LKT//R//LKTfunctions.R")
 library(rsvd)
 library(e1071)
 library(Rgraphviz)
@@ -356,15 +356,36 @@ auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
 
 system.time(modelob<-LKT(data=rlvl(valsamp),
-                         components=c("histsubint","histcontint","Anon.Student.Id","Anon.Student.Id",compKC,compKC),
-                         features=c("numer","numer","logsuc","logfail","clogsuc$","clogfail$"),
+                         components=c("histsubint","histcontint",paste0("c",1:12)),
+                         features=c("numer","numer",rep("logitdec",12)),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(rep(.92,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+system.time(modelob<-LKT(data=rlvl(valsamp),
+                         components=c("histsubint","histcontint",paste0("c",1:12),paste0("c",1:12)),
+                         features=c("numer","numer",rep("linesuc",12),rep("linefail",12)),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(rep(.92,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+system.time(modelob<-LKT(data=rlvl(valsamp),
+                         components=c("histsubint","histcontint",compKC,compKC),
+                         features=c("numer","numer","clinesuc","clogafm"),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
                          fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
 
+system.time(modelob<-LKT(data=rlvl(valsamp),
+                         components=c("histsubint","histcontint",compKC,compKC),
+                         features=c("numer","numer","clogsuc","clogfail"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
-plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
 
 system.time(modelob<-LKT(data=valsamp,
