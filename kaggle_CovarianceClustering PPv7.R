@@ -17,6 +17,7 @@ library(LiblineaR)
 library(Matrix)
 library(data.table)
 library(fastmatch)
+library(tidyr)
 `%ni%` = Negate(`%in%`)
 
 
@@ -111,7 +112,7 @@ rownames(reducedmat2$v)<-rownames(mydata)
 #==========================cluster matrix==============================
 cm <- (cmeans(reducedmat2$v,centers=posKC))
 
-rm(df)
+
 
 #=================extrapolate KC model==============
 
@@ -158,6 +159,7 @@ val$KC..Content. = val$content_id
 
 
 valhist<-val
+
 val<-valsamp
 
 
@@ -202,6 +204,25 @@ val$KC..Default. = val$tags
 #-1 are lectures, so we do want to keep track of these and use them eventually
 
 val<-val[val$CF..ansbin.!=-1,]
+
+
+system.time(modelob<-LKT(data=rlvl(valhist),
+                         components=c("Anon.Student.Id","KC..Content."),
+                         features=c("intercept","intercept"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(.92),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+rownames(modelob$coefs)<-gsub("interceptAnon.Student.Id","",rownames(modelob$coefs),fixed=TRUE)
+rownames(modelob$coefs)<-gsub("interceptKC..Content.","",rownames(modelob$coefs),fixed=TRUE)
+
+val$histsubint<- modelob$coefs[fmatch(val$Anon.Student.Id,rownames(modelob$coef))]
+val$histcontint<- modelob$coefs[fmatch(val$content_id,rownames(modelob$coef))]
+val$histsubint[is.na(val$histsubint)]<-0
+val$histcontint[is.na(val$histcontint)]<-0
+setorder(val,Anon.Student.Id,simtime)
+
 
 #=================extrapolate KC model==============
 
@@ -265,13 +286,12 @@ val<-merge(val,
 #=================Test===============================
 compKC<-paste(paste("c",1:posKC,sep=""),collapse="__")
 
-val[,compKC:= do.call(paste,val[,21:32])]
-colnames(val)[33]<-compKC
+val[,compKC:= do.call(paste,val[,23:34])]
+colnames(val)[35]<-compKC
 val$part<-as.character(val$part)
 val$Anon.Student.Id<-as.character(val$Anon.Student.Id)
 val$KC..Content. = as.character(val$content_id)
 
-compTags<-paste(paste("V",1:189,sep=""),collapse="__")
 
 valsamp<-val
 
@@ -310,32 +330,50 @@ valsamp<-val
 #val$studpart<-paste(val$Anon.Student.Id,val$part)
 
 
-system.time(modelob<-LKT(data=rlvl(valhist),
-                         components=c("Anon.Student.Id","KC..Content."),
-                         features=c("intercept","intercept"),
-                         # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(.92),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction)
-
-
-rownames(modelob$coefs)<-gsub("interceptAnon.Student.Id","",rownames(modelob$coefs),fixed=TRUE)
-rownames(modelob$coefs)<-gsub("interceptKC..Content.","",rownames(modelob$coefs),fixed=TRUE)
-
-valsamp$histsubint<- modelob$coefs[fmatch(valsamp$Anon.Student.Id,rownames(modelob$coef))]
-valsamp$histcontint<- modelob$coefs[fmatch(valsamp$content_id,rownames(modelob$coef))]
-valsamp$histsubint[is.na(valsamp$histsubint)]<-0
-valsamp$histcontint[is.na(valsamp$histcontint)]<-0
-setorder(valsamp,Anon.Student.Id,simtime)
-
 
 
 system.time(modelob<-LKT(data=rlvl(valsamp),
                          components=c("histsubint","histcontint"),
                          features=c("numer","numer"),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(.92),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
+                         fixedpars=c(.5),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 modelob$coefs
+
+
+valsamp[ , Anon.Student.Idspacing :=  as.integer((CF..Time.-shift(CF..Time.))/1000) , by = Anon.Student.Id]
+valsamp$Anon.Student.Idspacing<-na.fill(valsamp$Anon.Student.Idspacing,fill=0)
+
+
+system.time(modelob<-LKT(data=rlvl(valsamp),
+                         components=c("histsubint","histcontint","Anon.Student.Id"),
+                         features=c("numer","numer","recency"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(NA),seedpars=c(.5),interc = FALSE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+modelob$coefs
+
+
+
+valsamp[ , ACspacing :=  (CF..Time.-shift(CF..Time.))/1000 , by = list(Anon.Student.Id,AC)]
+valsamp$ACspacing<-na.fill(valsamp$ACspacing,fill=0)
+
+system.time(modelob<-LKT(data=rlvl(valsamp),
+                         components=c("histsubint","histcontint","AC"),
+                         features=c("numer","numer","recency$"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(NA),seedpars=c(.5),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+
+
+system.time(modelob<-LKT(data=rlvl(valsamp),
+                         components=c("histsubint","histcontint",compKC,compKC),
+                         features=c("numer","numer","clogsuc","clogfail"),
+                         # covariates = c(NA,NA,NA,"lecs","lecs"),
+                         fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
+auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+modelob$coefs
+
 
 
 system.time(modelob<-LKT(data=rlvl(valsamp),
@@ -347,12 +385,14 @@ auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 modelob$coefs
 
 
+source("C://Users//ppavl//Dropbox//Active projects//LKT//R//LKTfunctions.R")
 system.time(modelob<-LKT(data=rlvl(valsamp),
-                         components=c("Anon.Student.Id","Anon.Student.Id"),
-                         features=c("linesuc","linefail"),
+                         components=c(compKC,compKC),
+                         features=c("clogsuc","clogfail"),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
                          fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
+modelob$coefs
 
 
 system.time(modelob<-LKT(data=rlvl(valsamp),
@@ -360,30 +400,6 @@ system.time(modelob<-LKT(data=rlvl(valsamp),
                          features=c("numer","numer",rep("logitdec",12)),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
                          fixedpars=c(rep(.92,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction)
-
-
-system.time(modelob<-LKT(data=rlvl(valsamp),
-                         components=c("histsubint","histcontint",paste0("c",1:12),paste0("c",1:12)),
-                         features=c("numer","numer",rep("linesuc",12),rep("linefail",12)),
-                         # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(rep(.92,12)),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction)
-
-
-system.time(modelob<-LKT(data=rlvl(valsamp),
-                         components=c("histsubint","histcontint",compKC,compKC),
-                         features=c("numer","numer","clinesuc","clogafm"),
-                         # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction)
-
-
-system.time(modelob<-LKT(data=rlvl(valsamp),
-                         components=c("histsubint","histcontint",compKC,compKC),
-                         features=c("numer","numer","clogsuc","clogfail"),
-                         # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(.92),seedpars=c(NA),interc = TRUE,epsilon=1e-6,cost=1024))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 
 
@@ -403,22 +419,6 @@ system.time(modelob<-LKT(data=val,
                          features=c("intercept","intercept",rep("logitdec",189)),
                          # covariates = c(NA,NA,NA,"lecs","lecs"),
                          fixedpars=c(rep(.92,189)),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction)
-plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
-
-system.time(modelob<-LKT(data=val,
-                         components=c("KC..Content.","Anon.Student.Id",compTags),
-                         features=c("intercept","intercept","clogitdec"),
-                         # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(.92),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
-auc(modelob$newdata$CF..ansbin.,modelob$prediction)
-plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
-
-system.time(modelob<-LKT(data=val,
-                         components=c("KC..Content.","Anon.Student.Id",compKC),
-                         features=c("intercept","intercept","clogitdec"),
-                         # covariates = c(NA,NA,NA,"lecs","lecs"),
-                         fixedpars=c(.92),seedpars=c(NA),interc = FALSE,epsilon=1e-6,cost=1024))
 auc(modelob$newdata$CF..ansbin.,modelob$prediction)
 plot.roc(modelob$newdata$CF..ansbin.,modelob$prediction)
 

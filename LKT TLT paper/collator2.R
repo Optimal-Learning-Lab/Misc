@@ -3,8 +3,8 @@ library(plyr)
 library(stargazer)
 
 df <- data.frame(matrix(ncol = 11, nrow = 12))
-colnames(df)<- c("AIC*","BIC*","McFadden R<sup>2<sup>","RMSE<sub>train</sub>", "RMSE<sub>test</sub>","RMSE<sub>test<sub>",
-                 "SD<sub>test<sub>","Acc","Sensitivity","Specificity")
+colnames(df)<- c("AIC*","BIC*","R<sup>2<sup><sub>test</sub>","RMSE<sub>train</sub>", "RMSE<sub>test</sub>","RMSE<sub>test<sub>",
+                 "SD<sub>test<sub>","Acc","Sensitivity","Specificity","AUC<sub>test</sub>")
 
 featl <- list(
   c("propdec","lineafm$"),
@@ -21,32 +21,34 @@ featl <- list(
   c("propdec","propdec$","base4$"))
 
 #rownames(df) <- sapply(featl, paste, collapse = " ")
-folders<-c("chinese_tones","assistments","SVO","KDD","MH")
-folders<-c("Andes")
+#
+folders<-c("MH","Andes","chinese_tones","assistments","KDD")
 for (dats in folders){
 # make table of stats
 
 for (j in 1:12){
 
-setwd(paste("C:\\Users\\ppavl\\Dropbox\\Documents - Academic\\HPC Output\\",dats,sep=""))
+setwd(paste("C:\\Users\\ppavl\\Desktop\\",dats,sep=""))
 
 patv<-paste("results_for_model_",j,".txt",sep="")
-
+#print("here1")
 dataset <- do.call("rbind.fill", lapply(list.files(pattern=patv), FUN = function(file) {
+  #print(read.table(file, header=FALSE, sep=" "))
   read.table(file, header=FALSE, sep=" ")
-}))
 
+}))
+#print("here2")
 datalist<-dataset ##lapply(dataset, function(x) x[is.finite(x)])
 
 for (i in 1:12){
 df[j,i]<-signif(mean(datalist[[i]]),3)}}
 
-  setwd("C:\\Users\\ppavl\\Dropbox\\Documents - Academic\\HPC Output")
+  setwd("C:\\Users\\ppavl\\Desktop")
 #write(dats,file=paste("table",dats,".html",sep=""),append=TRUE)
 
-write(htmlTable(df[1:12,c(3,6,8)], n.tspanner = c(1,12),
+write(htmlTable(df[1:12,c(3,6,11)], n.tspanner = c(1,12),
                 css.table = "font-family: Calibri; font-size: 9pt; padding-left: 1em; padding-right: 1em;"
-                , rname=1:12),
+                ),
       file=paste("tablenew",dats,".html",sep=""),append=TRUE)
 
 
@@ -54,13 +56,14 @@ write(htmlTable(df[1:12,c(3,6,8)], n.tspanner = c(1,12),
 dataset<-list()
 for (j in 1:12){
 
-  setwd(paste("C:\\Users\\ppavl\\Dropbox\\Documents - Academic\\HPC Output\\",dats,sep=""))
+  setwd(paste("C:\\Users\\ppavl\\Desktop\\",dats,sep=""))
     patv<-paste("subdiflist_for_model_",j,".txt",sep="")
   print(length(list.files(pattern=patv)))
   dataset[[j]] <- do.call("rbind.fill", lapply(list.files(pattern=patv), FUN = function(file) {
     read.table(file, header=FALSE, sep=" ")[length(read.table(file, header=FALSE, sep=" ")[,1]),]
   }))
-  setwd("C:\\Users\\ppavl\\Dropbox\\Documents - Academic\\HPC Output")
+  setwd("C:\\Users\\ppavl\\Desktop")
+  #print(dataset[[j]][,1])
   write(length(dataset[[j]][,1]),file=paste("tablenew",dats,".html",sep=""),append=TRUE)
 }
 options(scipen=3)
@@ -68,7 +71,7 @@ pvalues <- matrix(data=0,nrow=12,ncol=12)
 for (i in 1:12){
   for(j in 1:12){
     difs<-dataset[[j]]-dataset[[i]]
-    difs<-difs[1:50,]
+    #difs<-difs[1:50,]
     pvalues[i,j] <- as.numeric(
       pt(mean(apply(difs,1,FUN=mean,na.rm=TRUE)/
                 (apply(difs,1,FUN=sd,na.rm=TRUE)/
